@@ -1,0 +1,49 @@
+{
+    "name": "extensibleseth/category-access",
+    "description": "Category based access control",
+    "type": "craft-plugin",
+    "version": "0.1.0",
+    "keywords": [
+        "craft",
+        "cms",
+        "craftcms",
+        "craft-plugin",
+        "category access"
+    ],
+    "support": {
+        "docs": "https://github.com/extensibleseth/category-access/blob/master/README.md",
+        "issues": "https://github.com/extensibleseth/category-access/issues"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Seth Hendrick",
+            "homepage": "https://www.github.com/extensibleseth"
+        }
+    ],
+    "require": {
+        "craftcms/cms": "^3.0.0"
+    },
+    "require-dev": {
+      "craftcms/cms": "^3.2.0",
+      "codeception/codeception": "^3.0",
+      "vlucas/phpdotenv": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+          "extensibleseth\\categoryaccess\\": "src/"
+        }
+    },
+    "extra": {
+        "name": "Category Access",
+        "handle": "category-access",
+        "developer": "Seth Hendrick",
+        "developerUrl": "https://www.github.com/extensibleseth",
+        "documentationUrl": "https://github.com/extensibleseth/category-access/blob/master/README.md",
+        "changelogUrl": "https://raw.githubusercontent.com/extensibleseth/category-access/master/CHANGELOG.md",
+        "components": {
+            "accessUpdate": "extensibleseth\\categoryaccess\\services\\AccessUpdate"
+        },
+        "class": "extensibleseth\\categoryaccess\\CategoryAccess"
+    }
+}
