@@ -16,6 +16,10 @@ use Craft;
 use craft\base\Plugin;
 use craft\services\Plugins;
 use craft\events\PluginEvent;
+use craft\elements\Entry;
+use craft\helpers\ElementHelper;
+use craft\events\ModelEvent;
+use trendyminds\isolate\records\IsolateRecord;
 
 use yii\base\Event;
 
@@ -99,6 +103,61 @@ class CategoryAccess extends Plugin
                 if ($event->plugin === $this) {
                     // We were just installed
                 }
+            }
+        );
+
+        Event::on(
+            Entry::class,
+            Entry::EVENT_AFTER_SAVE,
+            function (ModelEvent $event) {
+                /* @var Entry $entry */
+                $entry = $event->sender;
+
+		if ($event->isNew) {
+
+			// Check for department category.
+			if (!$entry->departmentCategory) {
+			    return false;
+
+			} else {
+
+			    // Get deaprtment categories from the entry.
+			    foreach ($entry->departmentCategory as $category) {
+
+				    // Get the user group handle.
+				    $userGroup = $category->userGroups->getGroups()[0]['handle'];
+
+				    // Get all the users in that group.
+				    $groupedUsers = \craft\elements\User::find()->group($userGroup)->all();
+
+				    foreach ($groupedUsers as $deptEditor) {
+
+					// Check if the isolated user already has access to this entry, if so, skip it
+					$existingRecord = IsolateRecord::findOne([
+					    "userId" => $deptEditor->id,
+					    "sectionId" => $entry->sectionId,
+					    "entryId" => $entry->duplicateOf->id,
+					]);
+
+					if ($existingRecord) {
+					    break;
+					}
+
+					// Otherwise make sure this user has access to this entry that they just created
+					$record = new IsolateRecord;
+					$record->setAttribute('userId', $deptEditor->id);
+					$record->setAttribute('sectionId', $entry->sectionId);
+					$record->setAttribute('entryId', $entry->duplicateOf->id);
+					$record->save();
+			            }
+			    }
+			    return true;
+			}
+			// Get department editor user groups from the department categories.
+			// Get the users in any of the user groups.
+			// Update their isolate profile with this entry id.
+
+		}
             }
         );
 
