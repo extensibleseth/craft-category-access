@@ -20,6 +20,8 @@ use craft\events\PluginEvent;
 use craft\elements\Entry;
 use craft\helpers\ElementHelper;
 use craft\events\ModelEvent;
+use craft\events\UserGroupsAssignEvent;
+
 use trendyminds\isolate\records\IsolateRecord;
 use trendyminds\isolate\services\IsolateService;
 
@@ -121,22 +123,33 @@ class CategoryAccess extends Plugin
 		}
 
 		// Check for department category.
+                // @TODO handle the case where a department with a UG was removed.
+                // - Get all isolated users and remove this entry id via modifyRecords().
 		if (!$entry->departmentCategory) {
 		    return false;
-
 		}
 
 		// Could use a service to update the users.
 
-		    // Get deaprtment categories from the entry.
+		    // Get department categories from the entry.
 		    foreach ($entry->departmentCategory->all() as $category) {
 
 			    // Get the first user group handle.
 			    // Multiple departmentCategory->department editor user groups not supported.
-			    $userGroup = $category->userGroups->getGroups()[0]['handle'];
+			    $userGroup = $category->userGroups->getGroups();
+			    if (empty($userGroup) || !isset($userGroup[0]['handle'])) {
+				    // No userGroups on category.
+				    // @TODO handle the case where a department with a UG was removed.
+				    // - Get all isolated users and remove this entry id via modifyRecords().
+				    break;
+			    }
+
+			    // Get the handle to load users.
+			    $userGroupHandle = $userGroup[0]['handle'];
 
 			    // Get all the users in that group.
-			    $groupedUsers = \craft\elements\User::find()->group($userGroup)->all();
+			    $groupedUsers = \craft\elements\User::find()->group($userGroupHandle)->all();
+			    //dd($groupedUsers);
 
 			    foreach ($groupedUsers as $deptEditor) {
 
@@ -152,6 +165,7 @@ class CategoryAccess extends Plugin
 				}
 
 				// Otherwise make sure this user has access to this entry that they just created
+				// @TODO remove users in other departments. 
 				$record = new IsolateRecord;
 				$record->setAttribute('userId', $deptEditor->id);
 				$record->setAttribute('sectionId', $entry->sectionId);
@@ -165,55 +179,65 @@ class CategoryAccess extends Plugin
 
 	// @TODO Add all department content on user group assignment.
 	Event::on(
-		\craft\services\Elements::class,
-		\craft\services\Elements::EVENT_AFTER_SAVE_ELEMENT,
-		function(Event $event) {
-    		if ($event->element instanceof \craft\elements\User) {
-                	/* @var User $user */
-			$user = $event->element;
-        		//dd($user);
+		\craft\services\Users::class,
+		\craft\services\Users::EVENT_AFTER_ASSIGN_USER_TO_GROUPS,
+		function(UserGroupsAssignEvent $event) {
+
+			// Get the user id to load groups.
+			$userId = $event->userId;
 
 			// Get the user's user groups.
-			/* @var UserGroups $userGroups */
-			$userGroups = \craft\services\UserGroups::getGroupsByUserId($user->id);
-			//dd($userGroups);
+			$userGroups = \craft\services\UserGroups::getGroupsByUserId($userId);
 
-			// Use the UserGroups ids as the category search parameter.
+			// Get User Groups uid.
 			$userGroupsIds = array_column($userGroups, 'uid');
-			//dd($userGroupsIds);
+
+			// Wrap each uid in array charaters.
 			foreach ($userGroupsIds as $key => $uid){
+
 				// Looks like the Isolate plugin has a deserializing issue.
 				$userGroupsIds[$key] = '["' . $uid . '"]';
-				//dd($userGroupsIds[$key]);
 			}
-			//dd($userGroupsIds);
 
 			// Get the department categories associated with those user groups.
 			$departmentCategories = \craft\elements\Category::find()->userGroups($userGroupsIds)->all();
-			//dd($departmentCategories);
 
 			// Get the ids of entries with one of those departments.
 			if (!empty($departmentCategories)) {
 				$departmentEntries = \craft\elements\Entry::find()->departmentCategory($departmentCategories)->ids();
-				//dd($departmentEntries);
 			} else {
+				// An empty array [] removes that section from isolation.
 				$departmentEntries = [];
-				//$departmentEntries = \craft\elements\Entry::find()->departmentCategory($departmentCategories)->ids();
-				//dd($departmentEntries);
 			}
 			
 			// Add or remove entries to the user's authorized entry ids.
+			// @TODO Get these values from config.
+			// 5 = Blog
+			// 14 = Departments
+			// 6 = FAQ
 			$isolateService = new IsolateService;
 			foreach ([5, 14, 6] as $sectionId) {
-				$isolateService::modifyRecords($user->id, $sectionId, $departmentEntries);
+				$isolateService::modifyRecords($userId, $sectionId, $departmentEntries);
 			}
 
 			return true;
-    		}
-
-		return false;
 	});
 
+
+        Event::on(
+            Entry::class,
+            Entry::EVENT_BEFORE_SAVE,
+            function (ModelEvent $event) {
+                /* @var Entry $entry */
+                $entry = $event->sender;
+
+		// If the departmentCategory field changed, remove it from isolation.
+		if (in_array('departmentCategory', $entry->dirtyFields)){
+			$record = new IsolateRecord;
+			$record->deleteAll(['entryId' => $entry->id]);
+			return true;
+		}
+	});
 /**
  * Logging in Craft involves using one of the following methods:
  *
