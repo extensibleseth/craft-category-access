@@ -197,7 +197,8 @@ class CategoryAccess extends Plugin
 				$departmentEntries = \craft\elements\Entry::find()->departmentCategory($departmentCategories)->ids();
 				//dd($departmentEntries);
 			} else {
-				$departmentEntries = [0];
+				$departmentEntries = [];
+				//$departmentEntries = \craft\elements\Entry::find()->departmentCategory($departmentCategories)->ids();
 				//dd($departmentEntries);
 			}
 			
